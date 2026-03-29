@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
+import os
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="🌍 Climate AI Pro", layout="wide")
@@ -15,8 +16,29 @@ st.markdown("### 📊 Advanced Climate Analysis + Prediction Dashboard")
 # ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/Land_and_Ocean_complete.txt", delim_whitespace=True)
+    file_path = "Land_and_Ocean_complete.txt"
+
+    # Check file exists
+    if not os.path.exists(file_path):
+        st.error(f"❌ File not found: {file_path}")
+        st.info("👉 Make sure the file is in the SAME folder as app.py")
+        st.stop()
+
+    # Load dataset
+    df = pd.read_csv(file_path, sep='\s+', comment='%', header=None)
+
+    # Assign column names
+    df.columns = ['Year', 'Month', 'Anomaly'] + [f'col_{i}' for i in range(3, len(df.columns))]
+
+    # Keep only useful columns
+    df = df[['Year', 'Month', 'Anomaly']]
+
+    # Rename for clarity
+    df.rename(columns={'Anomaly': 'LandOceanTemperatureIndex'}, inplace=True)
+
+    # Create Date column
     df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str))
+
     return df
 
 df = load_data()
@@ -65,12 +87,13 @@ elif view == "📈 Trend Analysis":
 
     rolling = st.slider("Select Rolling Window", 1, 24, 12)
 
+    filtered_df = filtered_df.copy()  # FIX warning
     filtered_df['RollingAvg'] = filtered_df['LandOceanTemperatureIndex'].rolling(rolling).mean()
 
     fig = px.line(filtered_df, x="Date", y=["LandOceanTemperatureIndex", "RollingAvg"])
     st.plotly_chart(fig, use_container_width=True)
 
-    st.info("Rolling average helps smooth fluctuations and show long-term trends.")
+    st.info("Rolling average smooths fluctuations and highlights long-term trends.")
 
 # ---------------- PREDICTION ----------------
 elif view == "🤖 Prediction":
@@ -97,7 +120,8 @@ elif view == "🤖 Prediction":
     future_years = np.arange(1880, 2100).reshape(-1, 1)
     future_preds = model.predict(poly.transform(future_years))
 
-    fig = px.line(x=future_years.flatten(), y=future_preds, labels={'x': 'Year', 'y': 'Temperature'})
+    fig = px.line(x=future_years.flatten(), y=future_preds,
+                  labels={'x': 'Year', 'y': 'Temperature'})
     st.plotly_chart(fig, use_container_width=True)
 
 # ---------------- DATA EXPLORER ----------------
@@ -108,7 +132,6 @@ elif view == "🔍 Data Explorer":
     st.dataframe(filtered_df.head(50))
 
     st.subheader("📊 Dataset Info")
-
     st.write("Shape:", filtered_df.shape)
     st.write("Columns:", list(filtered_df.columns))
     st.write("Data Types:")
