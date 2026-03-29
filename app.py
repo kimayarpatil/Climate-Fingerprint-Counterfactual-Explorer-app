@@ -1,156 +1,241 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import pickle
 import plotly.express as px
-from sklearn.linear_model import LinearRegression
 
-# ------------------ PAGE CONFIG ------------------
-st.set_page_config(page_title="Climate AI Explorer", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(page_title="Climate AI", layout="wide")
 
-# ------------------ CUSTOM CSS (🔥 PREMIUM UI) ------------------
+# ---------------- PREMIUM CSS ----------------
 st.markdown("""
 <style>
+
+/* Background */
 body {
-    background-color: #0e1117;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
 }
+
+/* Main */
 .main {
-    background: linear-gradient(135deg, #1f1c2c, #928dab);
-    padding: 10px;
-    border-radius: 10px;
+    background: transparent;
 }
-h1, h2, h3 {
+
+/* Glass Card */
+.card {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 20px;
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    margin-bottom: 20px;
+    transition: 0.3s;
+}
+.card:hover {
+    transform: scale(1.03);
+}
+
+/* Text */
+.title {
+    font-size: 18px;
+    color: #aaa;
+}
+.value {
+    font-size: 36px;
+    font-weight: bold;
     color: white;
 }
-.css-1d391kg {
-    background-color: #111 !important;
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: rgba(0,0,0,0.6);
 }
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(90deg, #00d4ff, #007cf0);
+    color: white;
+    border-radius: 10px;
+    border: none;
+    padding: 10px 20px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------ TITLE ------------------
-st.title("🌍 Climate Fingerprint AI Explorer")
-st.markdown("### 📊 Advanced Climate Analysis + Prediction Dashboard")
-
-# ------------------ LOAD DATA ------------------
+# ---------------- LOAD DATA ----------------
 @st.cache_data
-def load_data(file):
-    df = pd.read_csv(file, sep=r"\s+", skiprows=4, engine="python")
-    return df
+def load_data():
+    return pd.read_pickle("climate_final1.pkl")
 
-# ------------------ SIDEBAR ------------------
-st.sidebar.header("⚙️ Controls")
+df = load_data()
 
-uploaded_file = st.sidebar.file_uploader("📂 Upload Dataset (.txt)", type=["txt"])
+# ---------------- LOAD MODEL ----------------
+with open("climate_model1.pkl", "rb") as f:
+    model = pickle.load(f)
 
-# ------------------ DATA LOAD ------------------
-if uploaded_file:
-    df = load_data(uploaded_file)
-else:
-    st.warning("👈 Please upload dataset")
-    st.stop()
+# ---------------- SIDEBAR ----------------
+st.sidebar.markdown("## 🌍 Climate AI Dashboard")
+st.sidebar.markdown("---")
 
-# ------------------ CLEAN DATA ------------------
-df.columns = [
-    "Year", "Month", "Decimal_Date",
-    "Land_Temp", "Ocean_Temp",
-    "Land_Ocean_Temp"
-]
+page = st.sidebar.radio("Navigate", [
+    "🏠 Dashboard",
+    "📈 Trends",
+    "🌡 Seasonal",
+    "🌍 Global",
+    "⚠️ Anomalies",
+    "🤖 Prediction"
+])
 
-df["Time"] = df["Year"] + df["Month"]/12
+# ---------------- FILTER ----------------
+st.sidebar.subheader("📅 Filters")
 
-# ------------------ FILTER ------------------
-year_range = st.sidebar.slider(
-    "📅 Select Year Range",
-    int(df["Year"].min()),
-    int(df["Year"].max()),
-    (1900, 2020)
-)
+start = st.sidebar.date_input("Start Date", df['Date'].min())
+end = st.sidebar.date_input("End Date", df['Date'].max())
 
-filtered_df = df[(df["Year"] >= year_range[0]) & (df["Year"] <= year_range[1])]
+df = df[(df['Date'] >= str(start)) & (df['Date'] <= str(end))]
 
-# ------------------ TABS ------------------
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📊 Dashboard", "📈 Trends", "🔥 Insights", "🤖 Prediction", "📂 Data"]
-)
+# ---------------- DASHBOARD ----------------
+if page == "🏠 Dashboard":
+    st.markdown("## 📊 Climate Dashboard")
+    st.markdown("---")
 
-# ------------------ DASHBOARD ------------------
-with tab1:
+    # Premium Cards
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("🌡 Avg Land Temp", round(filtered_df["Land_Temp"].mean(), 2))
-    col2.metric("🌊 Avg Ocean Temp", round(filtered_df["Ocean_Temp"].mean(), 2))
-    col3.metric("🌍 Combined Temp", round(filtered_df["Land_Ocean_Temp"].mean(), 2))
+    with col1:
+        st.markdown(f"""
+        <div class="card">
+            <div class="title">🌡 Avg Temp</div>
+            <div class="value">{round(df['TAVG'].mean(),2)}°C</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    fig = px.line(filtered_df, x="Time", y="Land_Ocean_Temp",
-                  title="🌍 Global Temperature Trend",
+    with col2:
+        st.markdown(f"""
+        <div class="card">
+            <div class="title">🔥 Max Temp</div>
+            <div class="value">{round(df['TAVG'].max(),2)}°C</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown(f"""
+        <div class="card">
+            <div class="title">❄️ Min Temp</div>
+            <div class="value">{round(df['TAVG'].min(),2)}°C</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # AQI Style Card
+    latest = df['TAVG'].iloc[-1]
+    st.markdown(f"""
+    <div class="card">
+        <div class="title">🌍 Current Climate Status</div>
+        <div class="value">{latest:.2f}°C</div>
+        <div style="height:10px;border-radius:10px;
+        background: linear-gradient(90deg, green, yellow, orange, red);"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Chart
+    st.markdown("### 📈 Temperature Trend")
+    fig = px.line(df, x='Date', y='TAVG', template="plotly_dark", markers=True)
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+# ---------------- TRENDS ----------------
+elif page == "📈 Trends":
+    st.markdown("## 📈 Trend Analysis")
+    st.markdown("---")
+
+    fig = px.line(df, x='Date', y=['TAVG','Rolling_7','Rolling_30'],
                   template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
-# ------------------ TRENDS ------------------
-with tab2:
-    option = st.selectbox("Select Feature", [
-        "Land_Temp", "Ocean_Temp", "Land_Ocean_Temp"
-    ])
-
-    fig = px.line(filtered_df, x="Time", y=option,
-                  title=f"{option} Over Time",
-                  template="plotly_dark")
-    st.plotly_chart(fig, use_container_width=True)
-
-    fig2 = px.histogram(filtered_df, x=option,
-                        title="Distribution",
-                        template="plotly_dark")
+    st.markdown("### 🔥 Distribution")
+    fig2 = px.histogram(df, x='TAVG', nbins=50, template="plotly_dark")
     st.plotly_chart(fig2, use_container_width=True)
 
-# ------------------ INSIGHTS ------------------
-with tab3:
-    st.subheader("🔥 AI Insights")
+# ---------------- SEASONAL ----------------
+elif page == "🌡 Seasonal":
+    st.markdown("## 🌡 Seasonal Analysis")
+    st.markdown("---")
 
-    corr = filtered_df[[
-        "Land_Temp", "Ocean_Temp", "Land_Ocean_Temp"
-    ]].corr()
-
-    fig = px.imshow(corr,
-                    text_auto=True,
-                    title="Correlation Heatmap",
-                    color_continuous_scale="RdBu")
+    month_avg = df.groupby('Month')['TAVG'].mean().reset_index()
+    fig = px.bar(month_avg, x='Month', y='TAVG', template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Auto insight
-    trend = filtered_df["Land_Ocean_Temp"].iloc[-1] - filtered_df["Land_Ocean_Temp"].iloc[0]
+    st.markdown("### 🌈 Heatmap")
+    heatmap = df.pivot_table(values='TAVG', index='Month', columns='Year')
+    fig2 = px.imshow(heatmap, aspect='auto', template="plotly_dark")
+    st.plotly_chart(fig2)
 
-    if trend > 0:
-        st.success("📈 Temperature is increasing over time (Global Warming)")
-    else:
-        st.warning("📉 No significant warming trend detected")
+# ---------------- GLOBAL ----------------
+elif page == "🌍 Global":
+    st.markdown("## 🌍 Global Comparison")
+    st.markdown("---")
 
-# ------------------ PREDICTION ------------------
-with tab4:
-    st.subheader("🤖 Future Prediction")
-
-    model = LinearRegression()
-    X = filtered_df[["Time"]]
-    y = filtered_df["Land_Ocean_Temp"]
-    model.fit(X, y)
-
-    future_year = st.slider("Select Year", 2021, 2100, 2030)
-
-    future_time = future_year + 0.5
-    prediction = model.predict([[future_time]])
-
-    st.success(f"🌡 Predicted Temp in {future_year}: {prediction[0]:.2f} °C")
-
-    fig = px.scatter(x=[future_time], y=prediction,
-                     title="Prediction Point",
-                     template="plotly_dark")
-    st.plotly_chart(fig, use_container_width=True)
-
-# ------------------ DATA ------------------
-with tab5:
-    st.dataframe(filtered_df)
-
-    st.download_button(
-        "⬇ Download CSV",
-        filtered_df.to_csv(index=False),
-        "data.csv"
+    fig = px.line(
+        df,
+        x='Date',
+        y=['TAVG','TAVG_raw','land_and_ocean','global_tavg_monthly'],
+        template="plotly_dark"
     )
+    st.plotly_chart(fig, use_container_width=True)
+
+# ---------------- ANOMALIES ----------------
+elif page == "⚠️ Anomalies":
+    st.markdown("## ⚠️ Extreme Events")
+    st.markdown("---")
+
+    df['Z'] = (df['TAVG'] - df['TAVG'].mean()) / df['TAVG'].std()
+    anomalies = df[abs(df['Z']) > 2]
+
+    st.markdown("### 🚨 Extreme Events Table")
+    st.dataframe(anomalies[['Date','TAVG']].head(20))
+
+    fig = px.scatter(df, x='Date', y='TAVG',
+                     color=abs(df['Z']) > 2,
+                     template="plotly_dark")
+    st.plotly_chart(fig)
+
+# ---------------- PREDICTION ----------------
+elif page == "🤖 Prediction":
+    st.markdown("## 🤖 AI Temperature Predictor")
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns(3)
+
+    year = col1.number_input("Year", 2000, 2100, 2025)
+    month = col2.slider("Month", 1, 12, 6)
+    day = col3.slider("Day", 1, 31, 15)
+
+    tmin = st.number_input("Min Temp", value=0.0)
+    temp_range = st.number_input("Temp Range", value=1.0)
+
+    date = pd.Timestamp(year, month, day)
+    day_of_year = date.dayofyear
+    week = date.isocalendar().week
+    quarter = (month - 1)//3 + 1
+
+    input_data = np.array([[ 
+        year, month, day,
+        day_of_year, week, quarter,
+        tmin, temp_range, 5,
+        0,0,0,
+        0,0,
+        0,0,
+        0,0,0
+    ]])
+
+    if st.button("🚀 Predict"):
+        pred = model.predict(input_data)
+        st.success(f"🌡 Predicted Temperature: {round(pred[0],2)} °C")
+
+# ---------------- FOOTER ----------------
+st.markdown("---")
+st.markdown("✨ Built with Streamlit | Climate AI Project")
