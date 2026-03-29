@@ -33,6 +33,7 @@ def load_data():
 
 df = load_data()
 
+# Load model
 with open("climate_model(1).pkl", "rb") as f:
     model = pickle.load(f)
 
