@@ -1,152 +1,141 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
-import os
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="🌍 Climate AI Pro", layout="wide")
+# ------------------ PAGE CONFIG ------------------
+st.set_page_config(page_title="Climate AI Explorer", layout="wide")
 
-# ---------------- TITLE ----------------
 st.title("🌍 Climate Fingerprint AI Explorer")
 st.markdown("### 📊 Advanced Climate Analysis + Prediction Dashboard")
 
-# ---------------- LOAD DATA ----------------
+# ------------------ LOAD DATA ------------------
 @st.cache_data
-def load_data():
-    file_path = "Land_and_Ocean_complete.txt"
-
-    # Check file exists
-    if not os.path.exists(file_path):
-        st.error(f"❌ File not found: {file_path}")
-        st.info("👉 Make sure the file is in the SAME folder as app.py")
-        st.stop()
-
-    # Load dataset
-    df = pd.read_csv(file_path, sep='\s+', comment='%', header=None)
-
-    # Assign column names
-    df.columns = ['Year', 'Month', 'Anomaly'] + [f'col_{i}' for i in range(3, len(df.columns))]
-
-    # Keep only useful columns
-    df = df[['Year', 'Month', 'Anomaly']]
-
-    # Rename for clarity
-    df.rename(columns={'Anomaly': 'LandOceanTemperatureIndex'}, inplace=True)
-
-    # Create Date column
-    df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str))
-
+def load_data(file):
+    df = pd.read_csv(file, delim_whitespace=True)
     return df
 
-df = load_data()
-
-# ---------------- SIDEBAR ----------------
+# ------------------ SIDEBAR ------------------
 st.sidebar.header("⚙️ Controls")
 
-view = st.sidebar.radio("Select Section", [
-    "📊 EDA Dashboard",
-    "📈 Trend Analysis",
-    "🤖 Prediction",
-    "🔍 Data Explorer"
-])
-
-year_range = st.sidebar.slider(
-    "Select Year Range",
-    int(df.Year.min()),
-    int(df.Year.max()),
-    (1950, 2020)
+uploaded_file = st.sidebar.file_uploader(
+    "📂 Upload Dataset (.txt)", type=["txt"]
 )
 
-filtered_df = df[(df.Year >= year_range[0]) & (df.Year <= year_range[1])]
+use_sample = st.sidebar.checkbox("Use Default Dataset")
 
-# ---------------- EDA DASHBOARD ----------------
-if view == "📊 EDA Dashboard":
-    st.header("📊 Exploratory Data Analysis")
+# ------------------ DATA HANDLING ------------------
+if uploaded_file:
+    df = load_data(uploaded_file)
+
+elif use_sample:
+    file_path = os.path.join("data", "Land_and_Ocean_complete.txt")
+    
+    if os.path.exists(file_path):
+        df = load_data(file_path)
+    else:
+        st.error("❌ Default dataset not found. Please upload file.")
+        st.stop()
+else:
+    st.warning("👈 Upload dataset or select default dataset")
+    st.stop()
+
+# ------------------ DATA PREPROCESS ------------------
+df.columns = [
+    "Year", "Month", "Decimal_Date",
+    "Land_Temp", "Ocean_Temp",
+    "Land_Ocean_Temp"
+]
+
+df["Time"] = df["Year"] + (df["Month"] / 12)
+
+# ------------------ SIDEBAR FILTER ------------------
+year_range = st.sidebar.slider(
+    "Select Year Range",
+    int(df["Year"].min()),
+    int(df["Year"].max()),
+    (1900, 2020)
+)
+
+filtered_df = df[
+    (df["Year"] >= year_range[0]) &
+    (df["Year"] <= year_range[1])
+]
+
+# ------------------ TABS ------------------
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 Dashboard", "📈 Trends", "🤖 Prediction", "📂 Data"
+])
+
+# ------------------ TAB 1: DASHBOARD ------------------
+with tab1:
+    st.subheader("🌡 Climate Overview")
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("📅 Total Records", len(filtered_df))
-    col2.metric("🌡 Avg Temp Anomaly", round(filtered_df['LandOceanTemperatureIndex'].mean(), 3))
-    col3.metric("📈 Max Temp", round(filtered_df['LandOceanTemperatureIndex'].max(), 3))
+    col1.metric("Avg Land Temp", round(filtered_df["Land_Temp"].mean(), 2))
+    col2.metric("Avg Ocean Temp", round(filtered_df["Ocean_Temp"].mean(), 2))
+    col3.metric("Avg Combined", round(filtered_df["Land_Ocean_Temp"].mean(), 2))
 
-    st.subheader("📌 Temperature Distribution")
-    fig = px.histogram(filtered_df, x="LandOceanTemperatureIndex", nbins=50)
+    fig = px.line(
+        filtered_df,
+        x="Time",
+        y="Land_Ocean_Temp",
+        title="🌍 Global Temperature Trend"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("📅 Yearly Average Trend")
-    yearly = filtered_df.groupby("Year")["LandOceanTemperatureIndex"].mean().reset_index()
-    fig2 = px.line(yearly, x="Year", y="LandOceanTemperatureIndex")
+# ------------------ TAB 2: TRENDS ------------------
+with tab2:
+    st.subheader("📈 Temperature Trends")
+
+    option = st.selectbox(
+        "Select Temperature Type",
+        ["Land_Temp", "Ocean_Temp", "Land_Ocean_Temp"]
+    )
+
+    fig = px.line(filtered_df, x="Time", y=option, title=f"{option} Over Time")
+    st.plotly_chart(fig, use_container_width=True)
+
+    fig2 = px.histogram(filtered_df, x=option, title="Distribution")
     st.plotly_chart(fig2, use_container_width=True)
 
-# ---------------- TREND ANALYSIS ----------------
-elif view == "📈 Trend Analysis":
-    st.header("📈 Climate Trend Analysis")
-
-    rolling = st.slider("Select Rolling Window", 1, 24, 12)
-
-    filtered_df = filtered_df.copy()  # FIX warning
-    filtered_df['RollingAvg'] = filtered_df['LandOceanTemperatureIndex'].rolling(rolling).mean()
-
-    fig = px.line(filtered_df, x="Date", y=["LandOceanTemperatureIndex", "RollingAvg"])
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.info("Rolling average smooths fluctuations and highlights long-term trends.")
-
-# ---------------- PREDICTION ----------------
-elif view == "🤖 Prediction":
-    st.header("🤖 Future Climate Prediction")
-
-    degree = st.slider("Polynomial Degree", 1, 5, 2)
-
-    X = df[['Year']]
-    y = df['LandOceanTemperatureIndex']
-
-    poly = PolynomialFeatures(degree=degree)
-    X_poly = poly.fit_transform(X)
+# ------------------ TAB 3: PREDICTION ------------------
+with tab3:
+    st.subheader("🤖 Temperature Prediction")
 
     model = LinearRegression()
-    model.fit(X_poly, y)
+
+    X = filtered_df[["Time"]]
+    y = filtered_df["Land_Ocean_Temp"]
+
+    model.fit(X, y)
 
     future_year = st.slider("Select Future Year", 2021, 2100, 2030)
 
-    pred = model.predict(poly.transform([[future_year]]))[0]
+    future_time = future_year + (6 / 12)
+    prediction = model.predict([[future_time]])
 
-    st.success(f"🌡 Predicted Temperature Anomaly for {future_year}: **{round(pred, 3)} °C**")
+    st.success(f"🌡 Predicted Temperature in {future_year}: {prediction[0]:.2f} °C")
 
-    # Plot prediction curve
-    future_years = np.arange(1880, 2100).reshape(-1, 1)
-    future_preds = model.predict(poly.transform(future_years))
+    # Plot prediction
+    future_df = pd.DataFrame({
+        "Time": [future_time],
+        "Predicted": prediction
+    })
 
-    fig = px.line(x=future_years.flatten(), y=future_preds,
-                  labels={'x': 'Year', 'y': 'Temperature'})
+    fig = px.scatter(future_df, x="Time", y="Predicted", title="Future Prediction")
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------------- DATA EXPLORER ----------------
-elif view == "🔍 Data Explorer":
-    st.header("🔍 Raw Data Exploration")
+# ------------------ TAB 4: DATA ------------------
+with tab4:
+    st.subheader("📂 Dataset Preview")
+    st.dataframe(filtered_df)
 
-    st.subheader("📄 Dataset Preview")
-    st.dataframe(filtered_df.head(50))
-
-    st.subheader("📊 Dataset Info")
-    st.write("Shape:", filtered_df.shape)
-    st.write("Columns:", list(filtered_df.columns))
-    st.write("Data Types:")
-    st.write(filtered_df.dtypes)
-
-    st.subheader("❗ Missing Values")
-    st.write(filtered_df.isnull().sum())
-
-    st.subheader("🔁 Duplicate Rows")
-    st.write(filtered_df.duplicated().sum())
-
-    st.subheader("📅 Date Range")
-    st.write("Min Date:", filtered_df['Date'].min())
-    st.write("Max Date:", filtered_df['Date'].max())
-
-# ---------------- FOOTER ----------------
-st.markdown("---")
-st.markdown("🚀 Built with Streamlit | Climate AI Project")
+    st.download_button(
+        "⬇ Download Data",
+        filtered_df.to_csv(index=False),
+        file_name="filtered_data.csv"
+    )
