@@ -29,11 +29,11 @@ h1, h2, h3 {
 # ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
-    return pd.read_pickle("climate_final.pkl")
+    return pd.read_pickle("climate_final(1).pkl")
 
 df = load_data()
 
-with open("climate_model.pkl", "rb") as f:
+with open("climate_model(1).pkl", "rb") as f:
     model = pickle.load(f)
 
 # ---------------- SIDEBAR NAVIGATION ----------------
