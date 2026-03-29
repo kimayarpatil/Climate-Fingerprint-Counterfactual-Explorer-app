@@ -127,6 +127,12 @@ if page == "🏠 Dashboard":
         </div>
         """, unsafe_allow_html=True)
 
+trend = df['TAVG'].iloc[-1] - df['TAVG'].iloc[0]
+
+if trend > 0:
+    st.success("📈 Climate Insight: Temperature shows a strong increasing trend (Global Warming).")
+else:
+    st.warning("📉 Climate Insight: No strong warming trend detected.")
     # AQI Style Card
     latest = df['TAVG'].iloc[-1]
     st.markdown(f"""
