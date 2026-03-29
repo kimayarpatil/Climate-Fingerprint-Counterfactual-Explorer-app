@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import plotly.express as px
 
+
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Climate AI", layout="wide")
 
